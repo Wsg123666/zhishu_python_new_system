@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 import re
 from lxml import etree
 import threading
+import exceptions
 
 
 class LiXinSession:
@@ -60,6 +61,8 @@ class LiXinpaser:
         try:
             self.mutex.acquire()
             page = self.session.get(url=self.__course)
+            if page.status_code != 200:
+                raise exceptions.CrawlerException("ce14:教育系统崩溃了，请稍后在尝试")
             self.mutex.release()
             # print(page.content.decode("utf-8"))
             soup = BeautifulSoup(page.text, "html.parser")
@@ -132,27 +135,32 @@ class LiXinpaser:
                     "username":self.__username,
                     "course_id":course[0],
                     "course_code":course[1],
-                    "week":week,
-                    "place":place,
+                    "date_time":week,
+                    "week_place":place,
                     "course_name":td_list[3].xpath("./a/text()")[0],
                     "course_score":td_list[-2].xpath(".//text()")[0],
-                    "course_time":td_list[-1].xpath(".//text()")[0]
+                    "duration":td_list[-1].xpath(".//text()")[0]
                 }
 
                 course_dict_list.append(dic_course)
-
+            # print(course_dict_list)
             return {"course": {"state": 1, "data": course_dict_list}}
         except requests.exceptions.ConnectionError:
             self.mutex.release()
             return {"course": {"state": -1, "error_code": "ce10", "reason": "学校服务器对你的请求没有响应，访问失败"}}
+        except exceptions.CrawlerException as e:
+            error = str(e).split(":")
+            return {"course": {"state": -1, "error_code": error[0], "reason":error[1]}}
         except Exception as e:
             self.mutex.release()
-            return {"course": {"state": -1, "error_code": "ce8", "reason": "其他错误" + str(e)}}
+            return {"course": {"state": -1, "error_code": "ce8", "reason": "其他错误:" + str(e)}}
 
     def get_all_score(self):
         try:
             self.mutex.acquire()
             page = self.session.get(url=self.__score)
+            if page.status_code != 200:
+                raise exceptions.CrawlerException("ce14:教育系统崩溃了，请稍后在尝试")
             self.mutex.release()
             html_contend = page.content.decode("utf-8")
             # print(html_contend)
@@ -172,11 +180,12 @@ class LiXinpaser:
                     evaluation =tr.xpath(".//td")[-2].xpath("./text()")[0]
                     point = tr.xpath(".//td")[-1].xpath("./text()")[0]
                     score_dic = {
-                    "course_semister":score_title[title_num],
+                    "semester":score_title[title_num][:score_title[title_num].find("学期")+2],
+                    "username":self.__username,
                     "course_code":tr.xpath(".//td[2]/text()")[0],
                     "course_name":tr.xpath(".//td[3]/text()")[0],
                     "course_evaluation":re.findall("\d+.\d+",evaluation)[0] if re.findall("\d+.\d+",evaluation) else re.sub("\s+","",evaluation),
-                    "course_point":re.findall("\d+.\d+",point)[0] if re.findall("\d+.\d+",point) else re.sub("\s+","",point)
+                    "course_score":re.findall("\d+.\d+",point)[0] if re.findall("\d+.\d+",point) else re.sub("\s+","",point)
                     }
 
                     score_dic_list.append(score_dic)
@@ -187,14 +196,19 @@ class LiXinpaser:
         except requests.exceptions.ConnectionError:
             self.mutex.release()
             return {"score": {"state": -1, "error_code": "ce10", "reason": "学校服务器对你的请求没有响应，访问失败"}}
+        except exceptions.CrawlerException as e:
+            error = str(e).split(":")
+            return {"score": {"state": -1, "error_code": error[0], "reason":error[1]}}
         except Exception as e:
             self.mutex.release()
-            return {"score": {"state": -1, "error_code": "ce8", "reason": "其他错误" + str(e)}}
+            return {"score": {"state": -1, "error_code": "ce8", "reason": "其他错误:" + str(e)}}
 
     def get_detail(self):
         try:
             self.mutex.acquire()
             page = self.session.get(url=self.__detail)
+            if page.status_code != 200:
+                raise exceptions.CrawlerException("ce14:教育系统崩溃了，请稍后在尝试")
             self.mutex.release()
             soup = BeautifulSoup(page.text, "html.parser")
 
@@ -232,15 +246,19 @@ class LiXinpaser:
         except requests.exceptions.ConnectionError:
             self.mutex.release()
             return {"detail": {"state": -1, "error_code": "ce10", "reason": "学校服务器对你的请求没有响应，访问失败"}}
-
+        except exceptions.CrawlerException as e:
+            error = str(e).split(":")
+            return {"detail": {"state": -1, "error_code": error[0], "reason":error[1]}}
         except Exception as e:
             self.mutex.release()
-            return {"detail": {"state": -1, "error_code": "ce8", "reason": "内部错误" + str(e)}}
+            return {"detail": {"state": -1, "error_code": "ce8", "reason": "其他错误:" + str(e)}}
 
     def get_all_semester_summary(self):
         try:
             self.mutex.acquire()
             page = self.session.get(url=self.__score)
+            if page.status_code != 200:
+                raise exceptions.CrawlerException("ce14:教育系统崩溃了，请稍后在尝试")
             self.mutex.release()
             soup = BeautifulSoup(page.text, "html.parser")
 
@@ -261,7 +279,7 @@ class LiXinpaser:
                             "lesson_num": tds[1].text,
                             "total_credit": tds[2].text,
                             "average_grade": tds[3].text,
-                            "average_point":tds[4].text
+                            "average_score":tds[4].text
                         }
                         average_grade_list.append(all_semester_summary)
                     else:
@@ -273,7 +291,7 @@ class LiXinpaser:
                                 "lesson_num": tds[1].text,
                                 "total_credit": tds[2].text,
                                 "average_grade": tds[3].text,
-                                "average_point":tds[4].text
+                                "average_score":tds[4].text
                             }
                             average_grade_list.append(a_semester_summary)
 
@@ -281,13 +299,15 @@ class LiXinpaser:
         except requests.exceptions.ConnectionError:
             self.mutex.release()
             return {"all_semester": {"state": -1, "error_code": "ce10", "reason": "学校服务器对你的请求没有响应，访问失败"}}
-
+        except exceptions.CrawlerException as e:
+            error = str(e).split(":")
+            return {"all_semester": {"state": -1, "error_code": error[0], "reason":error[1]}}
         except Exception as e:
             self.mutex.release()
-            return {"all_semester": {"state": -1, "error_code": "ce8", "reason": "其他错误" + str(e)}}
+            return {"all_semester": {"state": -1, "error_code": "ce8", "reason": "其他错误:" + str(e)}}
 
 
 if __name__ == '__main__':
     li = LiXinSession(2016191245,"162619")
     li.login()
-    LiXinpaser(li).get_detail()
+    LiXinpaser(li).get_course_table()

@@ -77,7 +77,8 @@ class EAMSParser:
     def get_stuid(self):
         try:
             page = self.__session.get(url="https://jx.sspu.edu.cn/eams/courseTableForStd.action")
-
+            if page.status_code != 200:
+                raise exceptions.CrawlerException("ce14:教育系统崩溃了，请稍后在尝试")
             # if "未进行导师评估，不能进行此操作" in page.text:
             #     raise exceptions.CrawlerException("ce7")
 
@@ -86,16 +87,15 @@ class EAMSParser:
             pattern = re.findall(r"bg.form.addInput\(form,\"ids\",\"(.*?)\"\);", str(script))
             self.__stuid = int(pattern[0])
             return pattern[0]
-        except Exception:
-            traceback.print_exc()
-            error_mes = traceback.format_exc()
-            mail = Mail()
-            mail.send("爬虫获取stuid错误", "学号: "+self.__username+"\n密码: "+self.__password+"\n\n"+error_mes)
+        except Exception as e:
+            with open("log.log","a+") as f:
+                f.write(str(self.__username)+"place error"+str(e)+"\n")
             return -1    # 若出错，stuid为-1
 
     def get_user_detail(self):  # 可获取studentID <input type="hidden" name="studentId" value="246944"/>
         page = self.__session.get(url=self.__user_detail_page)
-
+        if page.status_code !=200:
+            raise exceptions.CrawlerException("ce14:教育系统崩溃了，请稍后在尝试")
         soup = BeautifulSoup(page.text, "html.parser")
 
         td = soup.find_all("td")
@@ -164,6 +164,8 @@ class EAMSParser:
             "ids": self.__stuid
         }
         page = self.__session.post(url=self.__course_table_page, data=data)
+        if page.status_code !=200:
+            raise exceptions.CrawlerException("ce14:教育系统崩溃了，请稍后在尝试")
         soup = BeautifulSoup(page.text, "html.parser")
         script = str(soup.find_all("script")[-2])
         # print(script)
@@ -183,7 +185,7 @@ class EAMSParser:
                     "semester": semester
                 }
                 course_dic_list.append(dic)
-            print(course_dic_list)
+            # print(course_dic_list)
             return course_dic_list
         else:
             return None
@@ -191,6 +193,8 @@ class EAMSParser:
     def get_course_table_another_way(self):   # 免登录，不会出现评教提醒
         url = self.__another_course_table_page+"?stdCode="+self.__username
         page = self.__session.get(url)
+        if page.status_code !=200:
+            raise exceptions.CrawlerException("ce14:教育系统崩溃了，请稍后在尝试")
         soup = BeautifulSoup(page.text, "html.parser")
         script = str(soup.find_all("script")[-1])
         course_list = re.findall("activity\s=\snew\sTaskActivity\((.*?)\)", script)
@@ -233,6 +237,8 @@ class EAMSParser:
             "projectType": "MAJOR"
         }
         page = self.__session.post(url=self.__all_grade_page, data=data)
+        if page.status_code !=200:
+            raise exceptions.CrawlerException("ce14:教育系统崩溃了，请稍后在尝试")
         soup = BeautifulSoup(page.text, "html.parser")
         tbodys = soup.find_all("tbody")[0]
         trs = tbodys.find_all("tr")
@@ -246,10 +252,9 @@ class EAMSParser:
                     all_semester_summary = {
                         "username": self.__username,
                         "school_year": "sum",
-                        "season": "sum",
                         "lesson_num": ths[1].text,
                         "total_credit": ths[2].text,
-                        "average_grade": ths[3].text
+                        "average_score": ths[3].text#平均绩点
                     }
                     average_grade_list.append(all_semester_summary)
                 else:
@@ -257,11 +262,10 @@ class EAMSParser:
                     if tds:
                         a_semester_summary = {
                             "username": self.__username,
-                            "school_year": tds[0].text,
-                            "season": tds[1].text,
+                            "school_year": tds[0].text+" "+tds[1].text,
                             "lesson_num": tds[2].text,
                             "total_credit": tds[3].text,
-                            "average_grade": tds[4].text
+                            "average_score": tds[4].text#平均绩点
                         }
                         average_grade_list.append(a_semester_summary)
 
@@ -277,7 +281,9 @@ class EAMSParser:
         if photo is None:
             return -1   # no photo
         else:
-            return photo.text  # successfully
+            with open('./photo/' + self.__username + ".jpg", 'wb') as file:
+                file.write(photo.content)
+            return 0  # successfully
 
     def get_course_table_with_stuid(self, stuid, week=1, semester=662):
         data = {
@@ -288,6 +294,8 @@ class EAMSParser:
             "ids": stuid
         }
         page = self.__session.post(url=self.__course_table_page, data=data)
+        if page.status_code !=200:
+            raise exceptions.CrawlerException("ce14:教育系统崩溃了，请稍后在尝试")
         soup = BeautifulSoup(page.text, "html.parser")
         script = str(soup.find_all("script")[-2])
         course_list = re.findall("activity\s=\snew\sTaskActivity\((.*?)\)", script)

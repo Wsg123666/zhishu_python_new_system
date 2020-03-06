@@ -24,7 +24,7 @@ def login(username,password,school,system=None):
             elif system == 1:
                 eams = EAMSSession(username, password)
                 eams_state = eams.login()
-                if eams_state:
+                if eams_state and eams_state !=503:
                     return eams
                 elif eams_state == 503:
                     raise exceptions.CrawlerException("ce9:内部错误:教务系统访问失败稍后重试")

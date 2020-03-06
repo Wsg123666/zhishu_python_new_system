@@ -122,18 +122,17 @@ class CarwerData:
             return {"detail":{"state":1,"data":detail}}
         except requests.exceptions.ConnectionError:
             return {"detail":{"state":-1,"error_code":"ce10","reason":"学校服务器对你的请求没有响应，访问失败"}}
+        except exceptions.CrawlerException as e:
+            error = str(e).split(":")
+            return {"detail": {"state": -1, "error_code": error[0], "reason":error[1]}}
         except Exception as e:
-            return {"detail":{"state":-1,"error_code":"ce8","reason":"内部错误"+str(e)}}
+            return {"detail":{"state":-1,"error_code":"ce8","reason":"其他错误:"+str(e)}}
 
     def get_course_table(self,week=1,semester=682):
         try:
             paser = EAMSParser(self.session)
             isget = paser.get_stuid()
-        except:
-            raise exceptions.CrawlerException("ce8")
-
-        try:
-            if isget:
+            if isget != -1:
                 course_dic_list = paser.get_course_table(week,semester)
                 return {"course":{"state": 1, "data": course_dic_list}}
             else:
@@ -141,8 +140,11 @@ class CarwerData:
                 return {"course":{"state": 1, "data": course_dic_list}}
         except requests.exceptions.ConnectionError:
             return {"course": {"state": -1, "error_code":"ce10","reason":"学校服务器对你的请求没有响应，访问失败"}}
+        except exceptions.CrawlerException as e:
+            error = str(e).split(":")
+            return {"course": {"state": -1, "error_code": error[0], "reason":error[1]}}
         except Exception as e:
-            return {"course":{"state": -1, "error_code": "ce8", "reason": "其他错误"+str(e)}}
+            return {"course":{"state": -1, "error_code": "ce8", "reason": "其他错误:"+str(e)}}
 
     def get_all_semester_summary(self):
         try:
@@ -151,8 +153,11 @@ class CarwerData:
             return {"all_semester":{"state": 1, "data": average_grade_list}}
         except requests.exceptions.ConnectionError:
             return {"all_semester": {"state": -1, "error_code":"ce10","reason":"学校服务器对你的请求没有响应，访问失败"}}
+        except exceptions.CrawlerException as e:
+            error = str(e).split(":")
+            return {"all_semester": {"state": -1, "error_code": error[0], "reason":error[1]}}
         except Exception as e:
-            return {"all_semester": {"state": -1,  "error_code": "ce8", "reason": "其他错误"+str(e)}}
+            return {"all_semester": {"state": -1,  "error_code": "ce8", "reason": "其他错误:"+str(e)}}
 
     def get_all_score(self):
         try:
@@ -161,7 +166,8 @@ class CarwerData:
                 "projectType": "MAJOR"
             }
             html = self.session.get_session().post(scor_url, data=data)
-
+            if html.status_code != 200:
+                raise exceptions.CrawlerException("ce14:教育系统崩溃了，请稍后在尝试")
             html = etree.HTML(html.content.decode("utf-8"))
             # print(etree.tostring(html, encoding="utf-8").decode("utf-8"))
             tr_data = html.xpath("//table/tbody[contains(@id,'data')]//tr")
@@ -193,8 +199,11 @@ class CarwerData:
             # print(self.final_data)
         except requests.exceptions.ConnectionError:
             return {"score": {"state": -1, "error_code": "ce10", "reason": "学校服务器对你的请求没有响应，访问失败"}}
+        except exceptions.CrawlerException as e:
+            error = str(e).split(":")
+            return {"score": {"state": -1, "error_code": error[0], "reason":error[1]}}
         except Exception as e:
-            return {"score": {"state": -1, "error_code": "ce8", "reason": "其他错误" + str(e)}}
+            return {"score": {"state": -1, "error_code": "ce8", "reason": "其他错误:" + str(e)}}
 
     def get_card(self,begin_data,end_data):
         try:
@@ -207,7 +216,9 @@ class CarwerData:
             error = str(e).split(":")
             return {"card": {"state": -1, "error_code": error[0], "reason":error[1]}}
         except Exception as e:
-            return {"card": {"state": -1, "error_code": "ce8", "reason": "其他错误" + str(e)}}
+            if "Exceeded 30" in str(e):
+                return {"card": {"state": -1, "error_code": "ce15", "reason": "页面重定向，转移，现在不能访问"}}
+            return {"card": {"state": -1, "error_code": "ce8", "reason": "其他错误:" + str(e)}}
 
     def get_sport(self):
         try:
@@ -219,8 +230,11 @@ class CarwerData:
             return {"sport": {"state": -1, "error_code": "ce11", "reason": "查询晨跑记录并不支持eams系统，请用oa密码重新登陆"}}
         except requests.exceptions.ConnectionError:
             return {"sport": {"state": -1, "error_code": "ce10", "reason": "学校服务器对你的请求没有响应，访问失败"}}
+        except exceptions.CrawlerException as e:
+            error = str(e).split(":")
+            return {"sport": {"state": -1, "error_code": error[0], "reason":error[1]}}
         except Exception as e:
             traceback.print_exc()
-            return {"sport": {"state": -1, "error_code": "ce8", "reason": "其他错误" + str(e)}}
+            return {"sport": {"state": -1, "error_code": "ce8", "reason": "其他错误:" + str(e)}}
 
 

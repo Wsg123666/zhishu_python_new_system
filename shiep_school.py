@@ -95,12 +95,16 @@ class SHIEPPaser:
         if photo is None:
             return -1   # no photo
         else:
-            return photo.text  # successfully
+            with open('./photo/' + self.__username + ".jpg", 'wb') as file:
+                file.write(photo.content)
+            return 0  # successfully
 
     def get_detail(self):  # 可获取studentID <input type="hidden" name="studentId" value="246944"/>
         try:
             self.mutex.acquire()
             page = self.__session.get(url=self.__user_detail_page)
+            if page.status_code != 200:
+                raise exceptions.CrawlerException("ce14:教育系统崩溃了，请稍后在尝试")
             self.mutex.release()
             soup = BeautifulSoup(page.text, "html.parser")
             td = soup.find_all("td")
@@ -159,10 +163,13 @@ class SHIEPPaser:
         except requests.exceptions.ConnectionError:
             self.mutex.release()
             return {"detail": {"state": -1, "error_code": "ce10", "reason": "学校服务器对你的请求没有响应，访问失败"}}
+        except exceptions.CrawlerException as e:
+            error = str(e).split(":")
+            return {"detail": {"state": -1, "error_code": error[0], "reason":error[1]}}
         except Exception as e:
             self.mutex.release()
             traceback.print_exc()
-            return {"detail": {"state": -1, "error_code": "ce8", "reason": "内部错误" + str(e)}}
+            return {"detail": {"state": -1, "error_code": "ce8", "reason": "其他错误:" + str(e)}}
 
     def get_course_table(self, from_week=1, semester=163):
         try:
@@ -176,6 +183,8 @@ class SHIEPPaser:
                 "ids": self.__stuid
             }
             page = self.__session.post(url=self.__course_table_page, data=data)
+            if page.status_code != 200:
+                raise exceptions.CrawlerException("ce14:教育系统崩溃了，请稍后在尝试")
             self.mutex.release()
             soup = BeautifulSoup(page.text, "html.parser")
             script = str(soup.find_all("script")[-3])
@@ -202,11 +211,11 @@ class SHIEPPaser:
                     "username": self.__username,
                     "course_id": course_id,  # 课程序号
                     "course_code": str(course_id).split(".")[0] if "." in str(course_id) else course_id,#课程代码
-                    "place":place,#地点
+                    "week_place":place,#地点
                     "name":name,#名字,
-                    "get_time":result,
+                    "duration":result,
                     "week":";".join(list(set(week))),#星期几
-                    "time":"-".join(time) if len(time) <= 2 else time[0] + "-"+time[len(time)-1],#第几节
+                    "week__pitch":"-".join(time) if len(time) <= 2 else time[0] + "-"+time[len(time)-1],#第几节
                     "semester": semester
                 }
 
@@ -225,10 +234,13 @@ class SHIEPPaser:
         except requests.exceptions.ConnectionError:
             self.mutex.release()
             return {"course": {"state": -1, "error_code": "ce10", "reason": "学校服务器对你的请求没有响应，访问失败"}}
+        except exceptions.CrawlerException as e:
+            error = str(e).split(":")
+            return {"course": {"state": -1, "error_code": error[0], "reason":error[1]}}
         except Exception as e:
             self.mutex.release()
             traceback.print_exc()
-            return {"course": {"state": -1, "error_code": "ce8", "reason": "其他错误" + str(e)}}
+            return {"course": {"state": -1, "error_code": "ce8", "reason": "其他错误:" + str(e)}}
 
 
             # course_list = re.findall("activity\s=\snew\sTaskActivity\((.*);?\)", script)
@@ -264,6 +276,8 @@ class SHIEPPaser:
             }
             self.mutex.acquire()
             html = self.__session.post(self.__all_score, data=data)
+            if html.status_code != 200:
+                raise exceptions.CrawlerException("ce14:教育系统崩溃了，请稍后在尝试")
             self.mutex.release()
             html = etree.HTML(html.content.decode("utf-8"))
 
@@ -302,9 +316,12 @@ class SHIEPPaser:
         except requests.exceptions.ConnectionError:
             self.mutex.release()
             return {"score": {"state": -1, "error_code": "ce10", "reason": "学校服务器对你的请求没有响应，访问失败"}}
+        except exceptions.CrawlerException as e:
+            error = str(e).split(":")
+            return {"score": {"state": -1, "error_code": error[0], "reason": error[1]}}
         except Exception as e:
             self.mutex.release()
-            return {"score": {"state": -1, "error_code": "ce8", "reason": "其他错误" + str(e)}}
+            return {"score": {"state": -1, "error_code": "ce8", "reason": "其他错误:" + str(e)}}
 
     def get_all_semester_summary(self):
         try:
@@ -313,6 +330,8 @@ class SHIEPPaser:
             }
             self.mutex.acquire()
             page = self.__session.post(url=self.__all_score, data=data)
+            if page.status_code != 200:
+                raise exceptions.CrawlerException("ce14:教育系统崩溃了，请稍后在尝试")
             self.mutex.release()
             soup = BeautifulSoup(page.text, "html.parser")
             # print(page.text)
@@ -328,10 +347,9 @@ class SHIEPPaser:
                         all_semester_summary = {
                             "username": self.__username,
                             "school_year": "sum",
-                            "season": "sum",
                             "lesson_num": ths[1].text,
                             "total_credit": ths[2].text,
-                            "average_point":ths[3].text
+                            "average_score":ths[3].text
                         }
                         average_grade_list.append(all_semester_summary)
                     else:
@@ -339,11 +357,10 @@ class SHIEPPaser:
                         if tds:
                             a_semester_summary = {
                                 "username": self.__username,
-                                "school_year": tds[0].text,
-                                "season": tds[1].text,
+                                "school_year": tds[0].text+" "+tds[1].text,
                                 "lesson_num": tds[2].text,
                                 "total_credit": tds[3].text,
-                                "average_point":tds[4].text
+                                "average_score":tds[4].text
                             }
                             average_grade_list.append(a_semester_summary)
             # print(average_grade_list)
@@ -352,13 +369,15 @@ class SHIEPPaser:
         except requests.exceptions.ConnectionError:
             self.mutex.release()
             return {"all_semester": {"state": -1, "error_code": "ce10", "reason": "学校服务器对你的请求没有响应，访问失败"}}
-
+        except exceptions.CrawlerException as e:
+            error = str(e).split(":")
+            return {"all_semester": {"state": -1, "error_code": error[0], "reason":error[1]}}
         except Exception as e:
             self.mutex.release()
-            return {"all_semester": {"state": -1, "error_code": "ce8", "reason": "其他错误" + str(e)}}
+            return {"all_semester": {"state": -1, "error_code": "ce8", "reason": "其他错误:" + str(e)}}
 
 if __name__ == '__main__':
     bsession = SHIEPSession("20181885","Ljl2326645")
     bsession.login()
     m = SHIEPPaser(bsession)
-    m.get_course_table()
+    m.get_all_semester_summary()

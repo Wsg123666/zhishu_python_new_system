@@ -28,7 +28,7 @@ def main(json_data_bs64:bytes):
     data_dic = json.loads(json_data)
     fin_data["username"] = data_dic["username"]
     #判断是哪个学校，不是进行转发
-    if data_dic.get("school") == 4 or data_dic.get("school") == '4':
+    if data_dic.get("school") == 3 or data_dic.get("school") == '3':
     #尝试登录
 
         try:
@@ -62,7 +62,7 @@ def main(json_data_bs64:bytes):
             return erro_dict
 
     else:
-        if data_dic.get("school") == 3 or data_dic.get("school") == '3':##上海金融
+        if data_dic.get("school") == 4 or data_dic.get("school") == '4':##上海金融
             content = url_change('main','49.232.51.43',6060,json_data_bs64.decode("utf-8"))
             return content
         if data_dic.get("school") == 5 or data_dic.get("school") == '5':  ##杉达
@@ -136,15 +136,16 @@ def user_login(json_data_bs64:bytes):
 
 if __name__ == '__main__':
 
-    json_data = {"username":20181885,"password":"Ljl2326645","school":7,"data":{"course":[15,163]}}
+    json_data = {"username": "20181885", "password": "Ljl2326645", "school": 7, "data": {"detail":None,"card":["2019-02-01","2020-03-12"],"score":None,"course":None}}
     json_1 = json.dumps(json_data,ensure_ascii=False)
     q = base64.b64encode(json_1.encode("utf-8"))
     print(q)
     # q = "eyJ1c2VybmFtZSI6IDIwMTcxMTEyNzIzLCAicGFzc3dvcmQiOiAiQDEyNi5jb20iLCAic2Nob29sIjogMywgInN5c3RlbSI6IDAsICJkYXRhIjogeyJjb3Vyc2UiOiBudWxsfX0="
-    b = main(q)
+    # b = main(q)
     # print(b)
 
-    json_data = {"username":20181885,"password":"Ljl2326645","school":7}
+    json_data = {"username":20181120208,"password":"1233780","system":1,"school":3}
     json_1 = json.dumps(json_data)
     m = base64.b64encode(json_1.encode("utf-8"))
-    print(m.decode('utf-8'))
+    m = user_login(m)
+    print(m)

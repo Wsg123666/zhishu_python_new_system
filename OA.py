@@ -78,6 +78,8 @@ class Card:
 
         # 访问这个页面的作用是调用一下刚刚的session，使得response cookie生效
         page = self.session.get(self.url2)
+        if page.status_code !=200:
+            raise exception.CrawlerException("ce14:教育系统崩溃了，请稍后在尝试")
         if "登出" not in page.text:
             raise exception.CrawlerException("ce12:校卡余额并不能被eams密码查到，请用oa密码登陆")
 

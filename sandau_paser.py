@@ -128,6 +128,7 @@ class SanDauPaser:
                     # "course_time": td_list[-1].xpath(".//text()")[0]
                 }
                 course_list.append(dic)
+            print(course_list)
             return {"course": {"state": 1, "data": course_list}}
         except requests.exceptions.ConnectionError:
             self.mutex.release()
@@ -281,4 +282,4 @@ class SanDauPaser:
 if __name__ == '__main__':
     san = SanDauSession("f18072106","073824")
     san.login()
-    SanDauPaser(san).get_all_score()
+    SanDauPaser(san).get_course_table()
