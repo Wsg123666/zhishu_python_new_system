@@ -171,6 +171,79 @@ class SHIEPPaser:
             traceback.print_exc()
             return {"detail": {"state": -1, "error_code": "ce8", "reason": "其他错误:" + str(e)}}
 
+
+    def hand_course_same(self,course_list):#处理相同的课程
+        # "username": self.__username,
+        # "course_id": course_id,  # 课程序号
+        # "course_code": str(course_id).split(".")[0] if "." in str(course_id) else course_id,  # 课程代码
+        # "week_place": place,  # 地点
+        # "name": name,  # 名字,
+        # "duration": result,
+        # "week": ";".join(list(set(week))),  # 星期几
+        # "week__pitch": "-".join(time) if len(time) <= 2 else time[0] + "-" + time[len(time) - 1],  # 第几节
+        # "semester": semester
+        week_zc_dict = {"1":"星期一","2":"星期二","3":"星期三","4":"星期四","5":"星期五",
+                        "6": "星期六","7":"星期天"}
+        new_course_list = []
+
+        while True:
+            temp = None
+            count = -1
+            for re in course_list:
+                if re:
+                    break
+            else:
+                break
+            for course in course_list:
+                count+=1
+                if not course:
+                    continue
+                if not temp:
+                    time_list = []
+                    period = 0
+                    if len(course["duration"]) > 0:
+                        if "单" in course["duration"]:
+                            period = 1
+                            course["duration"] = course["duration"].replace("单","")
+                        elif "双" in course["duration"]:
+                            period = 2
+                            course["duration"] = course["duration"].replace("双", "")
+                    for w in course["week"]:
+                        time_list.append({"week": week_zc_dict[w] if w !="" and w else "","week_pitch":course["week_pitch"],"duration":course["duration"],"place":course["week_place"],"period":period})
+                    course_dict = {
+                        "username": course["username"],
+                        "course_id": course["course_id"],
+                        "course_code": course["course_code"],
+                        "teacher":course["teacher"].replace('"',""),
+                        "course_score":course["course_score"],
+                        "name":course["name"],
+                        "time":time_list,
+                        "semester":course["semester"]
+                    }
+                    course_list[count]=None
+                    temp = course_dict
+                    continue
+                if course["name"] == temp["name"]:
+                    time_list = []
+                    period = 0
+                    if len(course["duration"])>0:
+                        if "单" in course["duration"]:
+                            period = 1
+                            course["duration"] = course["duration"].replace("单", "")
+                        elif "双" in course["duration"]:
+                            period = 2
+                            course["duration"] = course["duration"].replace("双", "")
+                    for w in course["week"]:
+                        time_list.append({"week": week_zc_dict[w] if w !="" and w else "", "week_pitch": course["week_pitch"], "duration": course["duration"],
+                                          "place": course["week_place"], "period": period})
+                    for t_list in time_list:
+                        temp["time"].append(t_list)
+                    #删除现在的
+                    course_list[count]=None
+            new_course_list.append(temp)
+        return new_course_list
+
+
     def get_course_table(self, from_week=1, semester=163):
         try:
             self.mutex.acquire()
@@ -188,11 +261,20 @@ class SHIEPPaser:
             self.mutex.release()
             soup = BeautifulSoup(page.text, "html.parser")
             script = str(soup.find_all("script")[-3])
-            # print(script)
+            HTML = etree.HTML(page.content.decode("utf-8"))
+            tbody = HTML.xpath('//tbody[contains(@id,"data")]//tr')
+            name_score_list = {}# 课程名称学分表
+            for tr in tbody:
+                name = tr.xpath(".//td[4]/text()")[0].replace("\t","").replace("\r","").replace("\n","").strip()
+                score = tr.xpath(".//td[9]/text()")[0].replace("\t","").replace("\r","").replace("\n","").strip()
+                name_score_list.setdefault(name,score)
+
+
             course_dic_list = []
             course_all_list = script.split("activity = new TaskActivity")
             for i in range (1,len(course_all_list)):
                 course_list = re.match("\((.+)\)",course_all_list[i]).group()
+                teacher = course_list.split(',"')[1]
                 cour_aoccpy_week = course_list.split(",\"")[-1][:-2]
                 course_id = re.findall("(.*)\)",course_list.split("(")[2])[0]
                 place = course_list.split(',"')[5][:-1]
@@ -211,11 +293,13 @@ class SHIEPPaser:
                     "username": self.__username,
                     "course_id": course_id,  # 课程序号
                     "course_code": str(course_id).split(".")[0] if "." in str(course_id) else course_id,#课程代码
+                    "teacher":teacher,
                     "week_place":place,#地点
                     "name":name,#名字,
                     "duration":result,
+                    "course_score":name_score_list[name],
                     "week":";".join(list(set(week))),#星期几
-                    "week__pitch":"-".join(time) if len(time) <= 2 else time[0] + "-"+time[len(time)-1],#第几节
+                    "week_pitch":"-".join(time) if len(time) <= 2 else time[0] + "-"+time[len(time)-1],#第几节
                     "semester": semester
                 }
 
@@ -230,7 +314,8 @@ class SHIEPPaser:
 
 
             # print(course_dic_list)
-            return {"course": {"state": 1, "data": course_dic_list}}
+            hand_course_list = self.hand_course_same(course_dic_list)
+            return {"course": {"state": 1, "data": hand_course_list}}
         except requests.exceptions.ConnectionError:
             self.mutex.release()
             return {"course": {"state": -1, "error_code": "ce10", "reason": "学校服务器对你的请求没有响应，访问失败"}}
@@ -377,7 +462,7 @@ class SHIEPPaser:
             return {"all_semester": {"state": -1, "error_code": "ce8", "reason": "其他错误:" + str(e)}}
 
 if __name__ == '__main__':
-    bsession = SHIEPSession("20181885","Ljl2326645")
+    bsession = SHIEPSession("20181341","wanghan123")
     bsession.login()
     m = SHIEPPaser(bsession)
-    m.get_all_semester_summary()
+    m.get_course_table(1,163)

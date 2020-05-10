@@ -92,7 +92,7 @@ class Card:
         soup = BeautifulSoup(html, "html.parser")
         tbody = soup.find_all("tbody")
         if len(tbody) == 0:   # 没有交易数据
-            raise exception.CrawlerException("ce6:没有交易数据")
+            raise exception.CrawlerException("ce6:{}到{}没有交易数据".format(self.begin,self.end))
         else:    # 有交易数据
             tran_list = []
             trs = tbody[0].find_all("tr")

@@ -5,6 +5,7 @@ import re
 from lxml import etree
 import threading
 import exceptions
+import traceback
 
 
 class LiXinSession:
@@ -107,42 +108,84 @@ class LiXinpaser:
                 # print(html)
                 td_list = etree.HTML(html).xpath("//tbody//td")
 
-                prepare_week = "".join(td_list[5].xpath(".//text()"))
-                # print(prepare_week)
-                # list = prepare_week.split(" ")
-                # print(list)
+                teacher = "".join(td_list[6].xpath(".//text()")).replace("\t","").replace("\n","").strip()
 
-                week = ";".join(re.findall("(星期.? \d{1,2}-\d{1,2})",prepare_week))
 
-                place_list = re.findall("星期.?\s\d{1,2}-\d{1,2}\s(.*?\s.+?)\s",prepare_week)
+                prepare_week = td_list[5].xpath(".//text()")
+                time_list = []
+                for time in prepare_week:
+                    period = 0
+                    time = time.replace("\t","").replace("\n","").strip()
+                    temp_lsit = time.split()
+                    if len(temp_lsit)>0:
+                        if "单" in temp_lsit[2]:
+                            period = 1
+                            temp_lsit[2] = temp_lsit[2].replace("单","")
+                        elif "双" in temp_lsit[2]:
+                            period = 2
+                            temp_lsit[2] = temp_lsit[2].replace("双", "")
 
-                new_place_list = []
-
-                num = 0  # 记录下面弄到第几个了
-
-                for place in place_list:
-                    num += 1
-                    temp_samp = False
-                    for i in range(num, len(place_list)):
-                        if place == place_list[i]:
-                            temp_samp = True
-                    if not temp_samp:
-                        new_place_list.append(place)
-
-                place = ";".join(new_place_list)
+                        time_list.append({"week":temp_lsit[0],"week_pitch":temp_lsit[1],"duration":temp_lsit[2],"place":temp_lsit[3],"period":period})
 
                 dic_course = {
-                    "username":self.__username,
-                    "course_id":course[0],
-                    "course_code":course[1],
-                    "date_time":week,
-                    "week_place":place,
-                    "course_name":td_list[3].xpath("./a/text()")[0],
+                    "username": self.__username,
+                    "course_id": course[0],
+                    "course_code": course[1],
+                    "teacher":teacher,
+                    "name": td_list[3].xpath("./a/text()")[0],
                     "course_score":td_list[-2].xpath(".//text()")[0],
-                    "duration":td_list[-1].xpath(".//text()")[0]
+                    "time": time_list,
+                    "semester":semester
                 }
-
                 course_dict_list.append(dic_course)
+                ###不用
+                # # week = ";".join(re.findall("(星期.? \d{1,2}-\d{1,2})",prepare_week))#星期三 1-4;星期五 1-4
+                #
+                # print(prepare_week)
+                #
+                # week_list = re.findall("(星期.? \d{1,2}-\d{1,2})",prepare_week)
+                # #对weeK_list进行遍历
+                # time_list = [] #[{duration: 17-18,place: 二教505}, {duration: 17-18, place:二教311}],
+                # for w in week_list:
+                #     temp = w.split()
+                #     time_list.append({"week":temp[0],"week_pitch":temp[1]})
+                #
+                #
+                # place_list = re.findall("星期.?\s\d{1,2}-\d{1,2}\s(.*?\s.+?)\s",prepare_week) #17-18  二教505;17-18  二教311
+                #
+                # new_place_list = []
+                #
+                # num = 0  # 记录下面弄到第几个了
+                #
+                # for place in place_list:
+                #     num += 1
+                #     temp_samp = False
+                #     for i in range(num, len(place_list)):
+                #         if place == place_list[i]:
+                #             temp_samp = True
+                #     if not temp_samp:
+                #         new_place_list.append(place)
+                #
+                # place = ";".join(new_place_list)
+                #
+                # place_record = []
+                #
+                # for p in new_place_list:
+                #     temp = p.split()
+                #     place_record.append({"duration":temp[0],"place":temp[1]})
+
+                # dic_course = {
+                #     "username":self.__username,
+                #     "course_id":course[0],
+                #     "course_code":course[1],
+                #     "week":time_list,
+                #     "week_place":place_record,
+                #     "name":td_list[3].xpath("./a/text()")[0],
+                #     "course_score":td_list[-2].xpath(".//text()")[0],
+                #     "duration":td_list[-1].xpath(".//text()")[0]
+                # }
+                ###不用
+                # course_dict_list.append(dic_course)
             # print(course_dict_list)
             return {"course": {"state": 1, "data": course_dict_list}}
         except requests.exceptions.ConnectionError:
@@ -152,6 +195,7 @@ class LiXinpaser:
             error = str(e).split(":")
             return {"course": {"state": -1, "error_code": error[0], "reason":error[1]}}
         except Exception as e:
+            traceback.print_exc()
             self.mutex.release()
             return {"course": {"state": -1, "error_code": "ce8", "reason": "其他错误:" + str(e)}}
 
@@ -180,7 +224,7 @@ class LiXinpaser:
                     evaluation =tr.xpath(".//td")[-2].xpath("./text()")[0]
                     point = tr.xpath(".//td")[-1].xpath("./text()")[0]
                     score_dic = {
-                    "semester":score_title[title_num][:score_title[title_num].find("学期")+2],
+                    "semester":score_title[title_num][:score_title[title_num].find("学期")-1],
                     "username":self.__username,
                     "course_code":tr.xpath(".//td[2]/text()")[0],
                     "course_name":tr.xpath(".//td[3]/text()")[0],
@@ -250,6 +294,7 @@ class LiXinpaser:
             error = str(e).split(":")
             return {"detail": {"state": -1, "error_code": error[0], "reason":error[1]}}
         except Exception as e:
+
             self.mutex.release()
             return {"detail": {"state": -1, "error_code": "ce8", "reason": "其他错误:" + str(e)}}
 
@@ -308,6 +353,7 @@ class LiXinpaser:
 
 
 if __name__ == '__main__':
-    li = LiXinSession(2016191245,"162619")
+    li = LiXinSession(171950506,"zhoumeng980915")
     li.login()
-    LiXinpaser(li).get_course_table()
+    m = LiXinpaser(li).get_all_score()
+    print(m)

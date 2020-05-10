@@ -1,10 +1,12 @@
-import json
+﻿import json
 from user_login import  login
 from  crawer_data import thread_get_data
 from fastapi import FastAPI
+from pydantic import BaseModel
 import base64
 import exceptions
 import requests
+
 from mail import Mail
 import traceback
 app = FastAPI()
@@ -14,15 +16,33 @@ def url_change(way,host,port,content):
     page = requests.get(url)
     return json.loads(page.text)
 
+class respon_content(BaseModel):
+    username:str =None
+    school:int = 0
+    state:int = 0
+    error_code:str =None
+    system:int = -1
+    title:str =None
+    content:str =None
+    sport:dict = {}
+    card:dict = {}
+    course:dict  = {}
+    detail:dict = {}
+    all_semester:dict = {}
+    score:dict = {}
+    score_simple:dict={}
+    course_simple:dict={}
 
-@app.get("/main/{json_data_bs64}")
+@app.get("/main/{json_data_bs64}",response_model=respon_content,response_model_skip_defaults = True)
+def bytes_main(json_data_bs64:bytes):
+    result = main(json_data_bs64)
+    return result
 def main(json_data_bs64:bytes):
     #解析json字符串
     try:
         json_data = base64.b64decode(json_data_bs64).decode("utf-8")
     except:
-        return {"username": "0000", "school": "0000", "state": -1, "error_code": "ce2", "title": "内容错误","content": "重新获得参数"}
-
+        return {"username": "0000", "school": 0, "state": -1, "error_code": "ce2", "title": "内容错误","content": "重新获得参数"}
 
     fin_data = {}
     data_dic = json.loads(json_data)
@@ -54,16 +74,14 @@ def main(json_data_bs64:bytes):
 
         except Exception as e:
 
-            erro_dict = {"username": data_dic["username"], "state": -1, "error_code": "ce3", "title": "其他错误", "contend": e}
+            erro_dict = {"username": data_dic["username"], "state": -1, "error_code": "ce8", "title": "其他错误", "content": str(e)}
             with open("log.log","a+") as w:
                 w.write(str(data_dic["username"])+str(e))
-            mail = Mail()
-            mail.send("错误人"+str(data_dic["username"]),str(e))
             return erro_dict
 
     else:
         if data_dic.get("school") == 4 or data_dic.get("school") == '4':##上海金融
-            content = url_change('main','49.232.51.43',6060,json_data_bs64.decode("utf-8"))
+            content = url_change('main','116.62.191.189',6060,json_data_bs64.decode("utf-8"))
             return content
         if data_dic.get("school") == 5 or data_dic.get("school") == '5':  ##杉达
             return 0
@@ -74,14 +92,17 @@ def main(json_data_bs64:bytes):
                 "title": "学校暂未开通", "content": "改学校还未开通，请之后请耐心等待"}
         return error
 
-@app.get("/login/{json_data_bs64}")
+@app.get("/login/{json_data_bs64}",response_model=respon_content,response_model_skip_defaults = True)
+def bytes_login(json_data_bs64:bytes):
+    result = user_login(json_data_bs64)
+    return result
 def user_login(json_data_bs64:bytes):
 
     try:
         json_data = base64.b64decode(json_data_bs64).decode("utf-8")
     except:
 
-        return {"username": "0000", "school": "0000", "state": -1, "error_code": "ce2", "title": "内容错误","content": "重新获得参数"}
+        return {"username": "0000", "school": 0, "state": -1, "error_code": "ce2", "title": "内容错误","content": "重新获得参数"}
 
     data_dic = json.loads(json_data)#获得发送来的数据信息
 
@@ -116,8 +137,6 @@ def user_login(json_data_bs64:bytes):
             erro_dict = {"username": data_dic["username"],"school":data_dic["school"], "state": -1, "error_code": "ce3", "title": "其他错误","content": e}
             with open("log.log", "a+") as w:
                 w.write(str(data_dic["username"]) + str(e))
-            mail = Mail()
-            mail.send("错误人" + str(data_dic["username"]), str(e))
             return erro_dict
     else:
         if data_dic.get("school") == 4 or data_dic.get("school") == '4':  ##上海金融
@@ -136,7 +155,7 @@ def user_login(json_data_bs64:bytes):
 
 if __name__ == '__main__':
 
-    json_data = {"username": "20181885", "password": "Ljl2326645", "school": 7, "data": {"detail":None,"card":["2019-02-01","2020-03-12"],"score":None,"course":None}}
+    json_data = {"username":"201811340","password":"wsg440295","school":4,"data":{"course":None}}
     json_1 = json.dumps(json_data,ensure_ascii=False)
     q = base64.b64encode(json_1.encode("utf-8"))
     print(q)
@@ -144,8 +163,8 @@ if __name__ == '__main__':
     # b = main(q)
     # print(b)
 
-    json_data = {"username":20181120208,"password":"1233780","system":1,"school":3}
+    json_data = {"username":20181885,"password":"1233780","system":1,"school":3}
     json_1 = json.dumps(json_data)
     m = base64.b64encode(json_1.encode("utf-8"))
-    m = user_login(m)
+    # m = bytes_login(m)
     print(m)

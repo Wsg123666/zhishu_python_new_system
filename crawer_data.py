@@ -8,6 +8,7 @@ from EAMS import EAMSSession
 from lx_paser import *
 from concurrent.futures import ThreadPoolExecutor,as_completed
 import requests
+import datetime
 import traceback
 
 def thread_get_data(session,username,data,thread_num=6):
@@ -15,7 +16,8 @@ def thread_get_data(session,username,data,thread_num=6):
     ways = {}
     if isinstance(session,OASession) or isinstance(session,EAMSSession):#上海第二工业大学
         object_session = CarwerData(data,session,username)
-        ways.update({"sport": object_session.get_sport,"card": object_session.get_card})
+        ways.update({"sport": object_session.get_sport,"card": object_session.get_card,
+                     "course_simple": object_session.get_course_table,"score_simple": object_session.get_all_score})
 
     elif isinstance(session,LiXinSession):#立信金融学院
         object_session = LiXinpaser(session)
@@ -28,9 +30,12 @@ def thread_get_data(session,username,data,thread_num=6):
 
     if object_session:
 
-        ways.update({"course": object_session.get_course_table,"detail": object_session.get_detail,
-                 "all_semester": object_session.get_all_semester_summary,"score": object_session.get_all_score
-                })
+        if isinstance(object_session,CarwerData):
+            ways.update({"detail": object_session.get_detail,"all_semester": object_session.get_all_semester_summary})
+        else:
+            ways.update({"course": object_session.get_course_table,"detail": object_session.get_detail,
+                     "all_semester": object_session.get_all_semester_summary,"score": object_session.get_all_score
+                    })
 
         pool = ThreadPoolExecutor(max_workers=thread_num)
         requests = []
@@ -51,11 +56,10 @@ def thread_get_data(session,username,data,thread_num=6):
 
         # num = len(data)#计数完成数量
         result = {}
-        try:
-            for future in as_completed(requests,100):
-                result.update(future.result())
-        except Exception as e:
-            print(e)
+
+        for future in as_completed(requests,1000):
+            result.update(future.result())
+
 
         # while True:
         #
@@ -115,6 +119,24 @@ class CarwerData:
     #
     #     return result
 
+
+    def get_second_activity(self):
+        advance_url = "https://oa.sspu.edu.cn/interface/Entrance.jsp?id=xsxgbbxt"
+        session = self.session.get_session()
+        advance_html = session.get(url=advance_url)
+        print(advance_html.content.decode("utf-8"))
+        get_url = "https://xgbb.sspu.edu.cn/sharedc/dc/studentxfform/index.do"
+        data = {
+            "hook_tag":"0ae9345a-2c75-4ca8-ac3e-cfb1c9228d44"
+        }
+        html = session.get(url=get_url,data=data)
+        print(html.content.decode("utf-8"))
+        html_content = etree.HTML(html.content.decode("utf-8"))
+        input_value = html_content.xpath("//input[@type='hiddle']//@value")
+        for m in input_value:
+            print(m)
+
+
     def get_detail(self):
         try:
             paser = EAMSParser(self.session)
@@ -134,17 +156,17 @@ class CarwerData:
             isget = paser.get_stuid()
             if isget != -1:
                 course_dic_list = paser.get_course_table(week,semester)
-                return {"course":{"state": 1, "data": course_dic_list}}
+                return {"course_simple":{"state": 1, "data": course_dic_list}}
             else:
                 course_dic_list = paser.get_course_table_another_way()
-                return {"course":{"state": 1, "data": course_dic_list}}
+                return {"course_simple":{"state": 1, "data": course_dic_list}}
         except requests.exceptions.ConnectionError:
-            return {"course": {"state": -1, "error_code":"ce10","reason":"学校服务器对你的请求没有响应，访问失败"}}
+            return {"course_simple": {"state": -1, "error_code":"ce10","reason":"学校服务器对你的请求没有响应，访问失败"}}
         except exceptions.CrawlerException as e:
             error = str(e).split(":")
-            return {"course": {"state": -1, "error_code": error[0], "reason":error[1]}}
+            return {"course_simple": {"state": -1, "error_code": error[0], "reason":error[1]}}
         except Exception as e:
-            return {"course":{"state": -1, "error_code": "ce8", "reason": "其他错误:"+str(e)}}
+            return {"course_simple":{"state": -1, "error_code": "ce8", "reason": "其他错误:"+str(e)}}
 
     def get_all_semester_summary(self):
         try:
@@ -195,18 +217,23 @@ class CarwerData:
                 }
                 score_data.append(score_dic)  # 成绩列表
             # print(self.final_data)
-            return {"score":{"state": 1, "data": score_data}}
+            return {"score_simple":{"state": 1, "data": score_data}}
             # print(self.final_data)
         except requests.exceptions.ConnectionError:
-            return {"score": {"state": -1, "error_code": "ce10", "reason": "学校服务器对你的请求没有响应，访问失败"}}
+            return {"score_simple": {"state": -1, "error_code": "ce10", "reason": "学校服务器对你的请求没有响应，访问失败"}}
         except exceptions.CrawlerException as e:
             error = str(e).split(":")
-            return {"score": {"state": -1, "error_code": error[0], "reason":error[1]}}
+            return {"score_simple": {"state": -1, "error_code": error[0], "reason":error[1]}}
         except Exception as e:
-            return {"score": {"state": -1, "error_code": "ce8", "reason": "其他错误:" + str(e)}}
+            return {"score_simple": {"state": -1, "error_code": "ce8", "reason": "其他错误:" + str(e)}}
 
-    def get_card(self,begin_data,end_data):
+    def get_card(self,begin_data=None,end_data=None):
         try:
+            if not (begin_data or end_data):
+                date1 = datetime.date.today()  # 今天的时间
+                tdelta = datetime.timedelta(days=14) # 可以相加减的时间
+                begin_data = str(date1 - tdelta)
+                end_data = str(date1)
             card = Card(self.session.get_session(), begin_data, end_data)
             tran_list = card.transaction()
             return {"card":{"state":1, "data": tran_list}}
@@ -238,3 +265,9 @@ class CarwerData:
             return {"sport": {"state": -1, "error_code": "ce8", "reason": "其他错误:" + str(e)}}
 
 
+
+if __name__ == '__main__':
+    oa = OASession("20181130340","wsg440295")
+    oa.login()
+    m = CarwerData("",oa,20181130340)
+    m.get_second_activity()

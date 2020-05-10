@@ -100,7 +100,7 @@ class EAMSParser:
 
         td = soup.find_all("td")
 
-        stuid = self.get_stuid()  # student ID
+        # stuid = self.get_stuid()  # student ID
         username = td[2].string  # 学号
         self.__username = username
         name = td[4].string  # 姓名
@@ -117,7 +117,7 @@ class EAMSParser:
         if photo_state == -1:
             dic = {
                 "username": username,
-                "stuid": int(stuid),
+                # "stuid": int(stuid),
                 "name": name,
                 "sex": sex,
                 "grade": grade,
@@ -133,7 +133,7 @@ class EAMSParser:
         else:
             dic = {
                 "username": username,
-                "stuid": int(stuid),
+                # "stuid": int(stuid),
                 "name": name,
                 "sex": sex,
                 "grade": grade,
