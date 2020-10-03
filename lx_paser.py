@@ -1,3 +1,11 @@
+"""
+@descript 立信学院
+
+
+"""
+
+
+
 import requests
 import random
 from bs4 import BeautifulSoup

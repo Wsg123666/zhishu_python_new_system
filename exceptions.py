@@ -1,3 +1,9 @@
+"""
+@descipt 错误描述信息
+
+"""
+
+
 class CrawlerException(Exception):
     def __init__(self, reason):
         self.reason = reason

@@ -1,3 +1,8 @@
+"""
+七牛云上传程序
+"""
+
+
 from qiniu import Auth, put_file, etag
 import qiniu.config
 
@@ -15,7 +20,6 @@ class QiNiu:
         """
         token = self.qiniu.upload_token(bucket_name, key, 3600)
         ret, info = put_file(token, key, localfile)
-        print(ret)
         assert ret['key'] == key
         assert ret['hash'] == etag(localfile)
 

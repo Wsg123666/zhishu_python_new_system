@@ -1,8 +1,10 @@
 from get_score import Score
-from proiexes import *
 from lxml import etree
 import  re
 import traceback
+import datetime
+import time
+import csv
 
 
 ###不爬取662的全部爬取器
@@ -23,6 +25,12 @@ class GetAllScore(Score):
     # def database_connect(self):
     #     conn = Database()
     #     self.conn = conn.get_database()
+
+    def sava_text(self,text):
+        dt = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        with open("error.log", "a+", newline="") as f:
+            f.write(str(text) + "\n" + str(dt))
+
 
     def get_score_content(self,username):
         scor_url = self.url
@@ -106,10 +114,10 @@ class GetAllScore(Score):
             # else:
             #     return False
         except Exception as e:
-            print("错误")
             print(e)
-            print(233)
-            sava_text(str(e)+str(87))
+            dt = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            self.sava_text(str(e)+"line_119")
+
             return False
         finally:
             # conn.commit()
@@ -129,7 +137,6 @@ class GetAllScore(Score):
                         login_state = self.text_login(user)
                         if login_state:
                             score = self.get_score_content(username)
-                            print(score)
                             text = username
                             for A_score in score:
                                 try:
@@ -142,7 +149,7 @@ class GetAllScore(Score):
                                         self.conn.commit()#如果服务器断开连接
                                     except Exception as e:
                                         print(e)
-                                        sava_text(e)
+                                        self.sava_text(e)
                                         self.database_connect()
                         login_state = False
                     except Exception as e:
@@ -152,12 +159,18 @@ class GetAllScore(Score):
                         print("休息10秒")
         except Exception as e:
             print(str(e)+str(127))
-            sava_text(e)
+            self.sava_text(e)
             traceback.print_exc()
         finally:
             self.conn.close()
 
 
 if __name__ == '__main__':
-    score = GetAllScore()
-    score.get_all_score()
+    while True:
+        time_ = datetime.datetime.now().strftime("%H")
+        time_2 = datetime.datetime.now().strftime("%H:%M")
+        if int(time_) == 1:
+            print("现在时间是{}".format(time_2))
+            score = GetAllScore()
+            score.get_all_score()
+            print("检查完毕")

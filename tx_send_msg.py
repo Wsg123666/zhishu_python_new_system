@@ -1,4 +1,10 @@
-﻿from qcloudsms_py import SmsSingleSender
+﻿"""
+腾讯发送短信
+
+"""
+
+
+from qcloudsms_py import SmsSingleSender
 from qcloudsms_py.httpclient import HTTPError
 
 

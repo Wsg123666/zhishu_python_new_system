@@ -1,24 +1,12 @@
-import datetime
-from pymysql import *
+"""
+编程，请输入一个文件路径名或文件名，查看该文件是否存在，
+如存在，打开文件并在屏幕上输出该文件内容；如不存在，显示“输入的文件未找到！”并要求重新输入；
+如文件存在但在读文件过程中发生异常，则显示“文件无法正常读出！”并要求重新输入。
+（提示：请使用异常处理。“文件未找到”对应的异常名为：FileNotFoundError，其他异常直接用except匹配）
+"""
 
-def get_lession_id(school=3):
-    lession_id_dic = {}  # 存储获取的lession_id字典
-    ##获取时间
-    end_year = datetime.datetime.now().strftime("%Y")
-    begin_year = str(int(end_year) - 3)
+f = open("test.txt")
 
-    ##连接数据库
-    conn = connect(host='cdb-box97608.bj.tencentcdb.com', port=10188, database='zhishu_working', user='root',
-                   password='19990206lyz', charset='utf8')
-    ##获取semester信息
-    cur = conn.cursor()
-    lession_list = cur.execute("select * from semester where school_id=%s and semester_year BETWEEN %s and %s ",
-                               (school, begin_year, end_year))
-
-    for lession_data in cur.fetchall():
-        lession_id_dic.setdefault(lession_data[5], lession_data[2])
-
-    return lession_id_dic
-
-re = get_lession_id(3)
-print(re)
+m = f.read(12)
+m = m.upper()
+print(m)

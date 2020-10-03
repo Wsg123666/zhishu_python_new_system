@@ -1,14 +1,16 @@
 ﻿import json
 from user_login import  login
 from  crawer_data import thread_get_data
+from starlette.requests import Request
+from starlette.responses import Response
 from fastapi import FastAPI
 from pydantic import BaseModel
 import base64
 import exceptions
 import requests
+import uvicorn
 
-from mail import Mail
-import traceback
+
 app = FastAPI()
 
 def url_change(way,host,port,content):
@@ -32,12 +34,27 @@ class respon_content(BaseModel):
     score:dict = {}
     score_simple:dict={}
     course_simple:dict={}
+    plan_content:dict={}
+    plan_snapshot:dict={}
+    plan_compl_snapshot:dict={}
 
 @app.get("/main/{json_data_bs64}",response_model=respon_content,response_model_skip_defaults = True)
-def bytes_main(json_data_bs64:bytes):
-    result = main(json_data_bs64)
-    return result
-def main(json_data_bs64:bytes):
+# def bytes_main(json_data_bs64:bytes):
+#     result = main(json_data_bs64)
+#     return result
+def main(json_data_bs64:bytes,request:Request,res:Response):
+    res.headers["content-type"] = "application/json;charset=utf-8"
+
+    #拦截ip
+
+    print(request.client.host)
+
+
+
+    # if not str(request.client.host).startswith("42.234") and not str(request.client.host).startswith("219.152"):
+    #     return {"title":"ip不被访问","content":"你的"+request.client.host+"没有被通过，请联系后台管理人员安排。"}
+
+
     #解析json字符串
     try:
         json_data = base64.b64decode(json_data_bs64).decode("utf-8")
@@ -93,10 +110,17 @@ def main(json_data_bs64:bytes):
         return error
 
 @app.get("/login/{json_data_bs64}",response_model=respon_content,response_model_skip_defaults = True)
-def bytes_login(json_data_bs64:bytes):
-    result = user_login(json_data_bs64)
-    return result
-def user_login(json_data_bs64:bytes):
+# def bytes_login(json_data_bs64:bytes):
+#     result = user_login(json_data_bs64)
+#     return result
+def user_login(json_data_bs64:bytes,request:Request,res:Response):
+    res.headers["content-type"] = "application/json;charset=utf-8"
+
+    print(request.client.host)
+
+    if not str(request.client.host).startswith("42.234") and not str(request.client.host).startswith("219.152"):
+
+        return {"title": "ip不被访问", "content": "你的" + request.client.host + "没有被通过，请联系后台管理人员安排。"}
 
     try:
         json_data = base64.b64decode(json_data_bs64).decode("utf-8")
@@ -155,7 +179,13 @@ def user_login(json_data_bs64:bytes):
 
 if __name__ == '__main__':
 
-    json_data = {"username":"201811340","password":"wsg440295","school":4,"data":{"course":None}}
+
+
+
+
+
+
+    json_data = {"username":"20181130340","password":"wsg440295","school":3,"system":0,"data":{"card":["2019-12-1","2020-06-18"]}}
     json_1 = json.dumps(json_data,ensure_ascii=False)
     q = base64.b64encode(json_1.encode("utf-8"))
     print(q)
@@ -163,7 +193,10 @@ if __name__ == '__main__':
     # b = main(q)
     # print(b)
 
-    json_data = {"username":20181885,"password":"1233780","system":1,"school":3}
+    uvicorn.run(app)
+
+
+    json_data = {"username":191900943,"password":"mrs201214","school":4,"data":{"detail":None,"course":None,"score":None,"all_semester":None}}
     json_1 = json.dumps(json_data)
     m = base64.b64encode(json_1.encode("utf-8"))
     # m = bytes_login(m)

@@ -4,7 +4,11 @@ import traceback
 from qcloudsms_py import SmsSingleSender
 from qcloudsms_py.httpclient import HTTPError
 
+"""
+发送指定短信类容
 
+
+"""
 
 def get_student(type):
     year = int(datetime.datetime.now().strftime('%Y'))

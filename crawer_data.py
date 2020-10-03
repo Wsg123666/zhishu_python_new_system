@@ -1,3 +1,8 @@
+"""
+@descript 多线程分配爬虫，sspu数据爬取。
+"""
+
+
 from EAMS import EAMSParser
 from sandau_paser import *
 from shiep_school import *
@@ -10,6 +15,8 @@ from concurrent.futures import ThreadPoolExecutor,as_completed
 import requests
 import datetime
 import traceback
+from lxml import etree
+from snapshot import ScreenShot
 
 def thread_get_data(session,username,data,thread_num=6):
     object_session = None
@@ -17,7 +24,9 @@ def thread_get_data(session,username,data,thread_num=6):
     if isinstance(session,OASession) or isinstance(session,EAMSSession):#上海第二工业大学
         object_session = CarwerData(data,session,username)
         ways.update({"sport": object_session.get_sport,"card": object_session.get_card,
-                     "course_simple": object_session.get_course_table,"score_simple": object_session.get_all_score})
+                     "course_simple": object_session.get_course_table,"score_simple": object_session.get_all_score,
+                     "plan_content":object_session.get_myplan_content,"plan_snapshot":object_session.get_myplan_snap,
+                     "plan_compl_snapshot":object_session.get_myplan_compl_snap})
 
     elif isinstance(session,LiXinSession):#立信金融学院
         object_session = LiXinpaser(session)
@@ -81,6 +90,10 @@ class CarwerData:
         self.username = username
         self.data = data
         self.session = session
+        self.session.get_session().headers.update({
+                                       "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36"
+                                       })
+        self.mutex = threading.Lock()
 
     def hand_space(self,data):#处理、\t\n这种
         data = re.findall("\d+.\d+",data)[0] if re.findall("\d+.\d+",data) else re.sub("\s+","",data)
@@ -121,20 +134,58 @@ class CarwerData:
 
 
     def get_second_activity(self):
-        advance_url = "https://oa.sspu.edu.cn/interface/Entrance.jsp?id=xsxgbbxt"
         session = self.session.get_session()
-        advance_html = session.get(url=advance_url)
-        print(advance_html.content.decode("utf-8"))
-        get_url = "https://xgbb.sspu.edu.cn/sharedc/dc/studentxfform/index.do"
-        data = {
-            "hook_tag":"0ae9345a-2c75-4ca8-ac3e-cfb1c9228d44"
-        }
-        html = session.get(url=get_url,data=data)
-        print(html.content.decode("utf-8"))
-        html_content = etree.HTML(html.content.decode("utf-8"))
-        input_value = html_content.xpath("//input[@type='hiddle']//@value")
-        for m in input_value:
-            print(m)
+
+
+        advance_url = "https://oa.sspu.edu.cn/interface/Entrance.jsp?id=xsxgbbxt"
+
+
+        ##需要两遍才能
+        session.get(advance_url)
+
+        session.get(advance_url)
+
+
+        new_url = "https://xgbb.sspu.edu.cn/sharedc/sso/fore-login.do?sysadmin=20181130340"
+
+        session.get(new_url)
+
+        ###第二课堂
+        #
+        # seconde_url = "https://xgbb.sspu.edu.cn/sharedc/core/home/index.do?menuNum=2&tophomeurl="
+        #
+        # result = session.get(seconde_url)
+        #
+        # hook_tag = re.findall("var request_token=(.*?);",result.content.decode("utf-8"))[0]
+        #
+        #
+        # post_data = {
+        #     "hook_tag":hook_tag
+        # }
+
+        second_url = "https://xgbb.sspu.edu.cn/sharedc/dc/studentxfform/index.do"
+
+
+        second_result = session.get(second_url)
+
+
+
+        html_xpath = etree.HTML(second_result.content.decode("utf-8"))
+
+        input_list = html_xpath("//input[@id='value' and @value]/@value")
+
+        for value in  input_list:
+            print(value)
+
+
+    def hand_seconde(self):
+        pass
+
+
+        # with open("result.html","w",encoding="utf-8") as f:
+        #     f.write(result.content.decode("utf-8"))
+
+
 
 
     def get_detail(self):
@@ -148,7 +199,61 @@ class CarwerData:
             error = str(e).split(":")
             return {"detail": {"state": -1, "error_code": error[0], "reason":error[1]}}
         except Exception as e:
+            traceback.print_exc()
             return {"detail":{"state":-1,"error_code":"ce8","reason":"其他错误:"+str(e)}}
+
+    def get_myplan_content(self):
+        """
+        得到我的计划文字内容
+        :return:
+        """
+        try:
+            url = "https://jx.sspu.edu.cn/eams/myPlan.action"
+
+            html = self.session.get_session().get(url)
+            html_content = html.content.decode("utf-8")
+
+            #获取tr
+            etree_html = etree.HTML(html_content)
+
+            tr_list = etree_html.xpath("//table[contains(@id,'planInfoTable')]//tbody//tr")
+
+            #遍历tr
+
+            myplan = []
+
+            for tr in tr_list:
+                try:
+                    sug_semesters = "".join(tr.xpath(".//td")[-3].xpath(".//text()")).replace("\xa0","")
+                    sug_semesters = "".join(re.findall("^\s*(.*)\s*", sug_semesters))
+                except Exception as e:
+                    continue
+                if sug_semesters=="":##去掉没有的
+                    continue
+                course_code = "".join(tr.xpath(".//td")[-11].xpath(".//text()")).replace("\xa0","")
+                course_name = "".join(tr.xpath(".//td")[-10].xpath(".//text()")).replace("\xa0","")
+                course_score = "".join(tr.xpath(".//td")[-9].xpath(".//text()")).replace("\xa0","")
+
+
+
+                temp_plan = {
+                    "course_code":course_code,
+                    "course_name":course_name,
+                    "course_score":course_score,
+                    "sug_semesters":sug_semesters
+                }
+
+                myplan.append(temp_plan)
+
+            return {"plan_content":{"state": 1,"data":myplan}}
+        except requests.exceptions.ConnectionError:
+            return {"plan_content": {"state": -1, "error_code":"ce10","reason":"学校服务器对你的请求没有响应，访问失败"}}
+        except exceptions.CrawlerException as e:
+            error = str(e).split(":")
+            return {"plan_content": {"state": -1, "error_code": error[0], "reason":error[1]}}
+        except Exception as e:
+            print(traceback.print_exc())
+            return {"plan_content": {"state": -1,  "error_code": "ce8", "reason": "其他错误:"+str(e)}}
 
     def get_course_table(self,week=1,semester=682):
         try:
@@ -231,7 +336,7 @@ class CarwerData:
         try:
             if not (begin_data or end_data):
                 date1 = datetime.date.today()  # 今天的时间
-                tdelta = datetime.timedelta(days=14) # 可以相加减的时间
+                tdelta = datetime.timedelta(days=20) # 可以相加减的时间
                 begin_data = str(date1 - tdelta)
                 end_data = str(date1)
             card = Card(self.session.get_session(), begin_data, end_data)
@@ -245,6 +350,7 @@ class CarwerData:
         except Exception as e:
             if "Exceeded 30" in str(e):
                 return {"card": {"state": -1, "error_code": "ce15", "reason": "页面重定向，转移，现在不能访问"}}
+            traceback.print_exc()
             return {"card": {"state": -1, "error_code": "ce8", "reason": "其他错误:" + str(e)}}
 
     def get_sport(self):
@@ -264,10 +370,40 @@ class CarwerData:
             traceback.print_exc()
             return {"sport": {"state": -1, "error_code": "ce8", "reason": "其他错误:" + str(e)}}
 
+    def get_myplan_compl_snap(self):
+        try:
+            snap = ScreenShot(self.session,3,self.mutex) #创建获取快照对象
+            photo_url = snap.get_myplan_compl()
+            return {"plan_compl_snapshot":{"state":1,"data":{"img_url":photo_url}}}
+        except requests.exceptions.ConnectionError:
+            return {"plan_compl_snapshot": {"state": -1, "error_code":"ce10","reason":"学校服务器对你的请求没有响应，访问失败"}}
+        except exceptions.CrawlerException as e:
+            error = str(e).split(":")
+            return {"plan_compl_snapshot": {"state": -1, "error_code": error[0], "reason":error[1]}}
+        except Exception as e:
+            print(traceback.print_exc())
+            return {"plan_compl_snapshot":{"state": -1, "error_code": "ce8", "reason": "其他错误:"+str(e)}}
+
+    def get_myplan_snap(self):
+        try:
+            snap = ScreenShot(self.session,3,self.mutex) #创建获取快照对象
+            photo_url = snap.get_myplan()
+            return {"plan_snapshot":{"state":1,"data":{"img_url":photo_url}}}
+        except requests.exceptions.ConnectionError:
+            return {"plan_snapshot": {"state": -1, "error_code":"ce10","reason":"学校服务器对你的请求没有响应，访问失败"}}
+        except exceptions.CrawlerException as e:
+            error = str(e).split(":")
+            return {"plan_snapshot": {"state": -1, "error_code": error[0], "reason":error[1]}}
+        except Exception as e:
+            print(traceback.print_exc())
+            return {"plan_snapshot":{"state": -1, "error_code": "ce8", "reason": "其他错误:"+str(e)}}
+
 
 
 if __name__ == '__main__':
     oa = OASession("20181130340","wsg440295")
     oa.login()
     m = CarwerData("",oa,20181130340)
-    m.get_second_activity()
+    re = m.get_card("2019-12-04","2020-06-18")
+
+    print(re)

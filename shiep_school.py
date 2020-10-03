@@ -1,3 +1,9 @@
+"""
+
+电力大学
+"""
+
+
 import requests
 import random
 from bs4 import BeautifulSoup

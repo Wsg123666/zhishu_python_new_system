@@ -2,7 +2,8 @@ import requests
 from bs4 import BeautifulSoup
 import random
 import exceptions as exception
-
+import re
+from lxml import etree
 
 class OASession:
 
@@ -13,7 +14,8 @@ class OASession:
         self.__session = requests.session()
         self.__session.headers.update({"X-Forwarded-For": "%d.%d.%d.%d" % (
             random.randint(120, 125), random.randint(1, 200), random.randint(1, 200), random.randint(1, 200)),
-                                       "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36","Connection":"close"
+                                       "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",
+                                       "Connection": "close"
                                        })
         self.__session = requests.session()
         self.login_state = False
@@ -21,6 +23,8 @@ class OASession:
     def login(self):
         try:
             main_page = self.__session.get(url=self.__url)
+
+
             soup = BeautifulSoup(main_page.text, "html.parser")
             lt = soup.find_all('input')[4]
             lt_code = lt.attrs["value"]
@@ -39,6 +43,7 @@ class OASession:
             if page.status_code == 200:
                 if "登录成功" in page.text:
                     self.login_state = True
+
                     return True
                 else:
                     return False
@@ -69,7 +74,8 @@ class Card:
         self.begin = begin_date
         self.end = end_date
         self.url1 = "https://card.sspu.edu.cn"
-        self.url2 = "https://card.sspu.edu.cn/c"
+        self.url2 = "https://card.sspu.edu.cn/epay/"
+        self.url3 = "https://card.sspu.edu.cn/epay/index/persontop.jsp"
 
     def transaction(self):
         # 重要：要访问两次才嫩得到带JSESSIONID的页面
@@ -77,38 +83,81 @@ class Card:
         self.session.get(self.url1)
 
         # 访问这个页面的作用是调用一下刚刚的session，使得response cookie生效
-        page = self.session.get(self.url2)
+        page = self.session.get(self.url3)
+
+
+
+        money = re.findall("余额：(.*?)元",page.text)[0] if len(re.findall("余额：(.*?)元",page.text))>0 else None
+
+
+
+
+        _csrf = etree.HTML(page.text).xpath("//input[@name='_csrf']//@value")[0]
+
+
+
+
+
         if page.status_code !=200:
             raise exception.CrawlerException("ce14:教育系统崩溃了，请稍后在尝试")
-        if "登出" not in page.text:
+        if "退出" not in page.text:
             raise exception.CrawlerException("ce12:校卡余额并不能被eams密码查到，请用oa密码登陆")
 
-        url = "https://card.sspu.edu.cn/web/20171130430/1?beginDate=" + self.begin + "&" \
-            "p_p_action=0&serialType=1&p_p_mode=view&" \
-            "_querydetail_struts_action=%2Fext%2Fecardtransactionquerydetail_result&" \
-            "p_p_id=querydetail&p_p_state=maximized&endDate=" + self.end
+        check_record = "https://card.sspu.edu.cn/epay/consume/query"
 
-        html = self.session.get(url).text
-        soup = BeautifulSoup(html, "html.parser")
-        tbody = soup.find_all("tbody")
-        if len(tbody) == 0:   # 没有交易数据
-            raise exception.CrawlerException("ce6:{}到{}没有交易数据".format(self.begin,self.end))
+        post_data = {
+            "starttime":self.begin,
+            "endtime":self.end,
+            "_csrf":_csrf
+        }
+
+
+        html = self.session.post(check_record,post_data).text
+
+
+
+
+        html_etree = etree.HTML(html)
+
+
+        #获取页数
+
+        page_numer = html_etree.xpath("//table[@align='right']/tr[1]/td[1]//text()")
+
+
+
+        tbody_tr = []
+        ##获取多页
+        if len(page_numer) >1:
+            for number in range(1,int(re.findall(".*/(\d+)页","".join(page_numer))[0])+1):
+                post_data["pageNo"] = number
+                html_etree = etree.HTML(self.session.post(check_record,data = post_data).text)
+                tbody_tr.extend(html_etree.xpath("//div[@class='tab-content']//tbody//tr"))
+
+        else:
+            tbody_tr = html_etree.xpath("//div[@class='tab-content']//tbody//tr")
+
+
+
+
+        if len(tbody_tr) == 0:   # 没有交易数据
+            tran_list = "ce6:{}到{}没有交易数据".format(self.begin,self.end)
         else:    # 有交易数据
             tran_list = []
-            trs = tbody[0].find_all("tr")
-            for tr in trs:
-                tds = tr.find_all("td")
+            for tr in tbody_tr:
                 tran_dic = {
-                    "number": tds[0].text,
-                    "entry_datetime": tds[1].text,
-                    "happen_datetime": tds[2].text,
-                    "place": tds[3].text,
-                    "way": tds[4].text,
-                    "money": tds[5].text,
-                    "balance": tds[6].text
+                    "number":"".join(tr.xpath("./td[1]/div[2]/text()")).strip(),
+                    "transaction number":"".join(tr.xpath("./td[2]/div/text()")),
+                    "happen_datetime":"".join( tr.xpath("./td[1]/div[1]/text()")).strip(),
+                    "way":"".join(tr.xpath("./td[2]/a/text()")),
+                    "money":"".join(tr.xpath("./td[4]/text()")).replace("\xa0","").replace("\r","").replace("\n","").replace("\t",""),
+                    "amount_money":"".join(tr.xpath("./td[5]/text()")).replace("\xa0","").strip(),
+                    "is_ok":"".join(tr.xpath("./td[6]/span/text()"))
                 }
                 tran_list.append(tran_dic)
-            return tran_list
+
+
+        return {"balance":money,"detail":tran_list}
 
 
 class SportSystem:

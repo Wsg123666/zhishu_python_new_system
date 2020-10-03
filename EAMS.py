@@ -3,10 +3,7 @@ from bs4 import BeautifulSoup
 import random
 import re
 import exceptions
-import base64
-from PIL import Image
-import traceback
-from mail import Mail
+
 
 
 
@@ -33,7 +30,7 @@ class EAMSSession:
     def login(self):
         try:
             page = self.__session.post(url=self.__login_page, data=self.data)
-            # print(page.content.decode("utf-8"))
+            print(page.content.decode("utf-8"))
             if page.status_code == 200:
                 if "密码错误" in page.text or "账户不存在" in page.text or "为空" in page.text:
                     return False
@@ -99,6 +96,8 @@ class EAMSParser:
         soup = BeautifulSoup(page.text, "html.parser")
 
         td = soup.find_all("td")
+
+        print(soup)
 
         # stuid = self.get_stuid()  # student ID
         username = td[2].string  # 学号
@@ -317,3 +316,6 @@ class EAMSParser:
         else:
             return None
 
+if __name__ == '__main__':
+    a = EAMSSession(20191110627,161513)
+    a.login()

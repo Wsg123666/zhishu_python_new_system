@@ -1,3 +1,12 @@
+"""
+需要安装phantomjs
+获取快照
+
+
+
+"""
+
+
 from selenium import webdriver
 from PIL import Image
 import time
@@ -5,13 +14,15 @@ from OA import OASession
 from selenium.webdriver.support.wait import WebDriverWait
 import io
 import QINIU
+import hashlib
 
 
 class ScreenShot:
-    def __init__(self,login_object,school):
+    def __init__(self,login_object,school,mutex=None):
         self.loginObject = login_object ##获取登录对象
-        self.login_check()
+        # self.login_check()
         self.school = school
+        self.mutex = mutex
 
     def plan_snapshot(self,url,cookies):
         """
@@ -20,6 +31,7 @@ class ScreenShot:
         :return:img url content
         """
         brower = webdriver.PhantomJS()
+
 
         brower.get("http://id.sspu.edu.cn/cas/login")
 
@@ -31,16 +43,20 @@ class ScreenShot:
                 "value": value
             }
             brower.add_cookie(c)
+        ##建立线程锁
+        try:
+            self.mutex.acquire() if self.mutex else True
+            brower.get(url)
+            brower.get(url)
+            self.mutex.release() if self.mutex else True
+        except Exception as e:
+            self.mutex.release() if self.mutex else print(e)
 
-
-
-        brower.get(url)
-        brower.get(url)
 
         brower.maximize_window()
 
         if "ompl" not in url:
-            wait = WebDriverWait(brower,10,0.5)
+            wait = WebDriverWait(brower,20,0.5)
 
             wait.until(lambda brower: brower.find_element_by_tag_name("ul"))
 
@@ -59,6 +75,7 @@ class ScreenShot:
         :return:
         """
         if not self.loginObject.login_state:
+            print("11")
             self.loginObject.login()
 
     def add_photo(self,image,watermark):
@@ -94,7 +111,15 @@ class ScreenShot:
     def get_myplan_compl(self):
         url = "https://jx.sspu.edu.cn/eams/myPlanCompl.action"
         date = time.time()
-        file_name = "sha1({}+{}+{}+sha1(zhishu.app))".format(self.loginObject.get_username(),self.school,int(date))
+
+
+        sha_value = hashlib.sha1("zhishu.app".encode("utf-8"))
+
+
+        file_name = "{}+{}+{}+{}".format(self.loginObject.get_username(),self.school,int(date),sha_value.hexdigest())
+
+        file_name_sha = hashlib.sha1(file_name.encode("utf-8")).hexdigest()
+
         cookies = {}
         #获取登录cookies
         for cookie,value in self.loginObject.get_session().cookies.items():
@@ -103,16 +128,16 @@ class ScreenShot:
         im_before = Image.open(byte_data)#从截图中获取的二进制文件。
         #水印文件
         im_watermark = Image.open("./photo/zhishu.png")
-        im_after = text.add_photo(im_before, im_watermark)
+        im_after = self.add_photo(im_before, im_watermark)
         ##保存图片
         im_after = im_after.convert("RGB")
-        im_after.save("./photo/myplancompl/"+file_name+".jpg")
+        im_after.save("./photo/myplancompl/"+file_name_sha+".jpg")
 
         ##上传文件
-        re = self.photo_upload("user-snapshots","plan_compl_snapshot/"+file_name,"./photo/myplancompl/"+file_name+".jpg")
+        re = self.photo_upload("user-snapshots","plan_compl_snapshot/"+file_name_sha,"./photo/myplancompl/"+file_name_sha+".jpg")
         ##返回价格
         if int(re)==200:
-            return "http://zhishu-user-img.pixeldesert.com/plan_compl_snapshot/"+file_name
+            return "http://zhishu-user-img.pixeldesert.com/plan_compl_snapshot/"+file_name_sha
 
     def photo_upload(self,bucket_name,filename,localfile):
         """
@@ -127,7 +152,15 @@ class ScreenShot:
     def get_myplan(self):
         url = "https://jx.sspu.edu.cn/eams/myPlan.action"
         date = time.time()
-        file_name = "sha1({}+{}+{}+sha1(zhishu.app))".format(self.loginObject.get_username(), self.school, int(date))
+
+        sha_value = hashlib.sha1("zhishu.app".encode("utf-8"))
+
+        file_name = "{}+{}+{}+{}".format(self.loginObject.get_username(), self.school, int(date), sha_value.hexdigest())
+
+        file_name_sha = hashlib.sha1(file_name.encode("utf-8")).hexdigest()
+
+
+
         cookies = {}
         # 获取登录cookies
         for cookie, value in self.loginObject.get_session().cookies.items():
@@ -136,16 +169,16 @@ class ScreenShot:
         im_before = Image.open(byte_data)  # 从截图中获取的二进制文件。
         # 水印文件
         im_watermark = Image.open("./photo/zhishu.png")
-        im_after = text.add_photo(im_before, im_watermark)
+        im_after = self.add_photo(im_before, im_watermark)
         ##保存图片
         im_after = im_after.convert("RGB")
-        im_after.save("./photo/myplan/" + file_name + ".jpg")
+        im_after.save("./photo/myplan/" + file_name_sha + ".jpg")
 
         ##上传文件
-        re = self.photo_upload("user-snapshots", "plan_snapshot/" + file_name, "./photo/myplan/" + file_name + ".jpg")
+        re = self.photo_upload("user-snapshots", "plan_snapshot/" + file_name_sha, "./photo/myplan/" + file_name_sha + ".jpg")
         ##返回价格
         if int(re) == 200:
-            return "http://zhishu-user-img.pixeldesert.com/plan_snapshot/" + file_name
+            return "http://zhishu-user-img.pixeldesert.com/plan_snapshot/" + file_name_sha
 
 if __name__ == '__main__':
     oa = OASession(20181130340,"wsg440295")
@@ -155,6 +188,7 @@ if __name__ == '__main__':
     print(comurl)
     url = text.get_myplan()
     print(url)
+
 
 
     # text = ScreenShot("jj")
